@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import argparse
 
 from cloudify_cli.cli import cfy
