@@ -2,10 +2,17 @@
 
 from __future__ import print_function
 import argparse
+import json
 from collections import OrderedDict
 
 from cloudify_cli.cli import cfy
 
+DEFAULT_RULES = OrderedDict({
+    "http://www.getcloudify.org/spec": "file:///opt/manager/resources/spec",
+    "http://cloudify.co/spec": "file:///opt/manager/resources/spec",
+    "https://www.getcloudify.org/spec": "file:///opt/manager/resources/spec",
+    "https://cloudify.co/spec": "file:///opt/manager/resources/spec",
+})
 
 def _get_resolver_rules(pctx):
     return pctx['context']['cloudify']['import_resolver']['parameters']['rules']
@@ -19,6 +26,22 @@ def _update_context(client, ctx):
     client.manager.update_context('provider', ctx['context'])
 
 
+def _rules_to_ordered_dict(ctx):
+    rules = _get_resolver_rules(ctx)
+    rules_dict = OrderedDict()
+    for rule in rules:
+        src, dest = rule.iteritems().next()
+        rules_dict[src] = dest
+    return rules_dict
+
+
+def _ordered_dict_to_rules(rules_dict):
+    lst = list()
+    for x, y in rules_dict.items():
+        lst.append({x: y})
+    return lst
+
+
 @cfy.pass_client()
 def pctx_get(client, **_):
     ctx = client.manager.get_context()
@@ -28,11 +51,7 @@ def pctx_get(client, **_):
 @cfy.pass_client()
 def get_resolver_rules(client, **_):
     ctx = client.manager.get_context()
-    rules = _get_resolver_rules(ctx)
-    rules_dict = OrderedDict()
-    for rule in rules:
-        src, dest = rule.iteritems.next()
-        rules_dict[src] = dest
+    rules_dict = _rules_to_ordered_dict(ctx)
     for x, y in rules_dict.items():
         print("{} -> {}".format(x, y))
 
@@ -51,18 +70,26 @@ def remove_resolver_rule(client, src, **_):
 
 
 @cfy.pass_client()
-def set_resolver_rule(client, src, dest, data, **_):
+def set_resolver_rule(client, src, dest, data, dry_run, **_):
     ctx = client.manager.get_context()
-    rules = _get_resolver_rules(ctx)
-    for rule in rules:
-        s, _ = rule.iteritems().next()
-        if s == src:
-            rule[src] = dest
-            break
+
+    if data:
+        with open(data, 'r') as f:
+            data_json = json.load(data)
+        rules_dict = OrderedDict()
+        rules_dict.update(DEFAULT_RULES)
+        for item in data_json:
+            src, dest = item
+            rules_dict[src] = dest
     else:
-        rules.append({src: dest})
-    _set_resolver_rules(ctx, rules)
-    _update_context(client, ctx)
+        rules_dict = _rules_to_ordered_dict(ctx)
+        rules_dict[src] = dest
+
+    rules = _ordered_dict_to_rules(rules_dict)
+    print("Updated rules:\n%s" % json.dumps(rules, indent=4))
+    if not dry_run:
+        _set_resolver_rules(ctx, rules)
+        _update_context(client, ctx)
 
 
 if __name__ == '__main__':
@@ -84,6 +111,7 @@ if __name__ == '__main__':
     rr_remove_parser.set_defaults(func=remove_resolver_rule)
 
     rr_set_parser = resolver_rules_sp.add_parser('set')
+    rr_set_parser.add_argument('-n', '--dry-run', action='store_true', default=False)
     rr_set_parser.add_argument('--src')
     rr_set_parser.add_argument('--dest')
     rr_set_parser.add_argument('--data')
