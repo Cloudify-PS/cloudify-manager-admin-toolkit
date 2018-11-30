@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import argparse
+from collections import OrderedDict
 
 from cloudify_cli.cli import cfy
 
@@ -20,18 +22,19 @@ def _update_context(client, ctx):
 @cfy.pass_client()
 def pctx_get(client, **_):
     ctx = client.manager.get_context()
-    print str(ctx)
+    print(str(ctx))
 
 
 @cfy.pass_client()
 def get_resolver_rules(client, **_):
     ctx = client.manager.get_context()
     rules = _get_resolver_rules(ctx)
-    rules_dict = dict()
+    rules_dict = OrderedDict()
     for rule in rules:
-        rules_dict.update(rule)
-    for x, y in rules_dict.iteritems():
-        print "{} -> {}".format(x, y)
+        src, dest = rule.iteritems.next()
+        rules_dict[src] = dest
+    for x, y in rules_dict.items():
+        print("{} -> {}".format(x, y))
 
 
 @cfy.pass_client()
@@ -48,7 +51,7 @@ def remove_resolver_rule(client, src, **_):
 
 
 @cfy.pass_client()
-def set_resolver_rule(client, src, dest, **_):
+def set_resolver_rule(client, src, dest, data, **_):
     ctx = client.manager.get_context()
     rules = _get_resolver_rules(ctx)
     for rule in rules:
@@ -81,8 +84,9 @@ if __name__ == '__main__':
     rr_remove_parser.set_defaults(func=remove_resolver_rule)
 
     rr_set_parser = resolver_rules_sp.add_parser('set')
-    rr_set_parser.add_argument('src')
-    rr_set_parser.add_argument('dest')
+    rr_set_parser.add_argument('--src')
+    rr_set_parser.add_argument('--dest')
+    rr_set_parser.add_argument('--data')
     rr_set_parser.set_defaults(func=set_resolver_rule)
 
     args = master_parser.parse_args()
