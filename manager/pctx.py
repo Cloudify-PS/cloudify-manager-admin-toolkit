@@ -69,18 +69,24 @@ def remove_resolver_rule(client, src, **_):
     _update_context(client, ctx)
 
 
+def _build_resolver_rules(rules):
+    rules_dict = OrderedDict()
+    rules_dict.update(DEFAULT_RULES)
+    for item in rules:
+        src, dest = item.iteritems().next()
+        rules_dict[src] = dest
+
+    return rules_dict
+
+
 @cfy.pass_client()
 def set_resolver_rule(client, src, dest, data, dry_run, **_):
     ctx = client.manager.get_context()
 
     if data:
         with open(data, 'r') as f:
-            data_json = json.load(data)
-        rules_dict = OrderedDict()
-        rules_dict.update(DEFAULT_RULES)
-        for item in data_json:
-            src, dest = item
-            rules_dict[src] = dest
+            data_json = json.load(f)
+        rules_dict = _build_resolver_rules(data_json)
     else:
         rules_dict = _rules_to_ordered_dict(ctx)
         rules_dict[src] = dest
@@ -90,6 +96,15 @@ def set_resolver_rule(client, src, dest, data, dry_run, **_):
     if not dry_run:
         _set_resolver_rules(ctx, rules)
         _update_context(client, ctx)
+
+
+@cfy.pass_client()
+def reset_resolver_rules(client, **_):
+    ctx = client.manager.get_context()
+    rules_dict = _build_resolver_rules([])
+    rules = _ordered_dict_to_rules(rules_dict)
+    _set_resolver_rules(ctx, rules)
+    _update_context(client, ctx)
 
 
 if __name__ == '__main__':
@@ -105,6 +120,9 @@ if __name__ == '__main__':
 
     rr_get_parser = resolver_rules_sp.add_parser('get')
     rr_get_parser.set_defaults(func=get_resolver_rules)
+
+    rr_reset_parser = resolver_rules_sp.add_parser('reset')
+    rr_reset_parser.set_defaults(func=reset_resolver_rules)
 
     rr_remove_parser = resolver_rules_sp.add_parser('remove')
     rr_remove_parser.add_argument('src')
